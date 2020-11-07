@@ -2,7 +2,7 @@ import argparse
 import glob
 from pathlib import Path
 
-import mayavi.mlab as mlab
+# import mayavi.mlab as mlab
 import numpy as np
 import torch
 
@@ -12,7 +12,7 @@ from pcdet.models import build_network, load_data_to_gpu
 from pcdet.utils import common_utils
 # from visual_utils import visualize_utils as V
 # from xvfbwrapper import Xvfb
-# import pickle as pkl
+import pickle as pkl
 
 
 class DemoDataset(DatasetTemplate):
@@ -99,8 +99,11 @@ def main():
 
             with open('../saved_pred/curr_pickle.pkl', 'wb+') as f:
                 data_ = {
-                    "data_dict": data_dict['points'][:, 1:],
-                    "pred_dicts": pred_dicts
+                    "data_dict": data_dict['points'][:, 1:].cpu().detach().numpy(),
+                   # "pred_dicts": pred_dicts.cpu().detach().numpy()
+                    "pred_boxes": pred_dicts[0]["pred_boxes"].cpu().detach().numpy(),
+                    "pred_labels": pred_dicts[0]["pred_labels"].cpu().detach().numpy(),
+                    "pred_scores": pred_dicts[0]["pred_scores"].cpu().detach().numpy()		
                 }
                 pkl.dump(data_, f) 
 
@@ -110,7 +113,18 @@ def main():
             data_ = pkl.load(f)
 
         data_dict = data_["data_dict"]
-        pred_dicts = data_["pred_dicts"]
+#        pred_dicts = data_["pred_dicts"]
+        pred_boxes=data_["pred_boxes"]
+        pred_labels=data_["pred_labels"]
+        pred_scores=data_["pred_scores"]
+        
+        pred_dicts=list()
+        d=dict()
+        d["pred_boxes"] = pred_boxes
+        d["pred_labels"] = pred_labels
+        d["pred_scores"] = pred_scores
+        
+        pred_dicts.append(d)
 
         # vdisplay = Xvfb(width=1920, height=1080)
         # vdisplay.start()  
