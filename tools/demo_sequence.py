@@ -13,6 +13,7 @@ from pcdet.utils import common_utils
 # from visual_utils import visualize_utils as V
 # from xvfbwrapper import Xvfb
 import pickle as pkl
+import os
 
 
 class DemoDataset(DatasetTemplate):
@@ -86,14 +87,22 @@ def main():
     logger.info(f'Total number of samples: \t{len(demo_dataset)}')
 
     if args.saved_pred == "":
+
+        curr_seq = args.seq_path.split("/")[-1]
         
         model = build_network(model_cfg=cfg.MODEL, num_class=len(cfg.CLASS_NAMES), dataset=demo_dataset)
         model.load_params_from_file(filename=args.ckpt, logger=logger, to_cpu=True)
         model.cuda()
         model.eval()  
 
+        # Removing existing csv file
+        csv_file_path = '%s/%s.csv' % (args.output_dir, curr_seq)
+        if os.path.exists(csv_file_path):
+            os.remove(csv_file_path)
+
         with torch.no_grad():
             for idx, data_dict in enumerate(demo_dataset):
+
                 logger.info(f'Visualized sample index: \t{idx + 1}')
                 data_dict = demo_dataset.collate_batch([data_dict])
                 load_data_to_gpu(data_dict)
@@ -102,14 +111,31 @@ def main():
                 # Creating output dir if it does not already exist
                 Path(args.output_dir).mkdir(parents=True, exist_ok=True)
 
+                data_ = {
+                    "data_dict": data_dict['points'][:, 1:].cpu().detach().numpy(),
+                    "pred_boxes": pred_dicts[0]["pred_boxes"].cpu().detach().numpy(),
+                    "pred_labels": pred_dicts[0]["pred_labels"].cpu().detach().numpy(),
+                    "pred_scores": pred_dicts[0]["pred_scores"].cpu().detach().numpy()		
+                }
+
                 with open('%s/curr_pickle_%s.pkl' % (args.output_dir, str(idx)), 'wb+') as f:
-                    data_ = {
-                        "data_dict": data_dict['points'][:, 1:].cpu().detach().numpy(),
-                        "pred_boxes": pred_dicts[0]["pred_boxes"].cpu().detach().numpy(),
-                        "pred_labels": pred_dicts[0]["pred_labels"].cpu().detach().numpy(),
-                        "pred_scores": pred_dicts[0]["pred_scores"].cpu().detach().numpy()		
-                    }
                     pkl.dump(data_, f) 
+
+                # Writing to text file in kitti format for tracking step
+                frame_data = np.zeros((data_["pred_labels"].shape[0], 15))
+                frame_data[:, 0] = idx # Frame ID
+                frame_data[:, 1] = data_["pred_labels"] # Labels
+                frame_data[:, 2:6] = 0 # 2d bounding boxes
+                frame_data[:, 6] = data_["pred_scores"] # 2d bounding boxes
+                frame_data[:, 7:10]= data_["pred_boxes"][:, 3:6]
+                frame_data[:, 10:13]= data_["pred_boxes"][:, 0:3]
+                frame_data[:, 13]= data_["pred_boxes"][:, -1]
+                frame_data[:, 14]= 0 # Alpha
+
+                print("Shape of frame data is: ", frame_data.shape, idx)
+
+                with open('%s/%s.csv' % (args.output_dir, curr_seq), 'a') as f:
+                    np.savetxt(f, frame_data, delimiter=",")
 
     else:
 
