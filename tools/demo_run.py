@@ -100,7 +100,7 @@ def main():
             with open('../saved_pred/curr_pickle.pkl', 'wb+') as f:
                 data_ = {
                     "data_dict": data_dict['points'][:, 1:].cpu().detach().numpy(),
-                   # "pred_dicts": pred_dicts.cpu().detach().numpy()
+                    "gt_labels": pred_dicts.cpu().detach().numpy()
                     "pred_boxes": pred_dicts[0]["pred_boxes"].cpu().detach().numpy(),
                     "pred_labels": pred_dicts[0]["pred_labels"].cpu().detach().numpy(),
                     "pred_scores": pred_dicts[0]["pred_scores"].cpu().detach().numpy()		
