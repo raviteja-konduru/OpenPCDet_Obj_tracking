@@ -107,7 +107,7 @@ def main():
 
     else:
 
-        with open('../saved_pred/curr_pickle.pkl', 'rb') as f:
+        with open('saved_pred/curr_pickle.pkl', 'rb') as f:
             data_ = pkl.load(f)
 
         data_dict = data_["data_dict"]
@@ -140,5 +140,5 @@ if __name__ == '__main__':
 
     """
         Invoking command:
-            python demo_offload.py --saved_pred ../saved_pred/curr_pickle.pkl
+            python demo_vis.py --saved_pred ../saved_pred/curr_pickle.pkl
     """
