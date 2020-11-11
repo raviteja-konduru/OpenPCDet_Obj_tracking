@@ -15,7 +15,6 @@ venv/
 *.bin
 output_backup/
 .ipynb_checkpoints/
-tools
 /.ipynb_checkpoints
 output*/
 Icon[]
