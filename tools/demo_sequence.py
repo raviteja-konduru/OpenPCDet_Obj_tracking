@@ -11,7 +11,7 @@ from pcdet.datasets import DatasetTemplate
 from pcdet.models import build_network, load_data_to_gpu
 from pcdet.utils import common_utils
 # from visual_utils import visualize_utils as V
-# from xvfbwrapper import Xvfb
+
 import pickle as pkl
 import os
 
@@ -100,6 +100,16 @@ def main():
         if os.path.exists(csv_file_path):
             os.remove(csv_file_path)
 
+        # Loading the ground truth from kitti-odometry
+        gt_path = "/".join(args.seq_path.split("/")[0:-2]) + "/label_02/" + curr_seq + ".txt"
+        gt_data = np.genfromtxt(gt_path, dtype=str)[:, [0, 2, 13, 14, 15, 10, 11, 12, 16]]
+
+        gt_data = gt_data[np.logical_or(gt_data[:, 1] == 'Car', np.logical_or(gt_data[:, 1] == 'Cyclist', gt_data[:, 1] == 'Pedestrian')), :]
+        gt_data = gt_data[:, [0, 2, 3, 4, 5, 6, 7, 8]]
+
+        # Converting to floats
+        gt_data = gt_data.astype(np.float)
+
         with torch.no_grad():
             for idx, data_dict in enumerate(demo_dataset):
 
@@ -111,11 +121,14 @@ def main():
                 # Creating output dir if it does not already exist
                 Path(args.output_dir).mkdir(parents=True, exist_ok=True)
 
+                relevant_gt_boxes = gt_data[gt_data[:, 0] == idx][:, 1:]
+
                 data_ = {
                     "data_dict": data_dict['points'][:, 1:].cpu().detach().numpy(),
                     "pred_boxes": pred_dicts[0]["pred_boxes"].cpu().detach().numpy(),
                     "pred_labels": pred_dicts[0]["pred_labels"].cpu().detach().numpy(),
-                    "pred_scores": pred_dicts[0]["pred_scores"].cpu().detach().numpy()		
+                    "pred_scores": pred_dicts[0]["pred_scores"].cpu().detach().numpy(),
+                    "gt_boxes": relevant_gt_boxes
                 }
 
                 with open('%s/curr_pickle_%s.pkl' % (args.output_dir, str(idx)), 'wb+') as f:
@@ -131,8 +144,6 @@ def main():
                 frame_data[:, 10:13]= data_["pred_boxes"][:, 0:3]
                 frame_data[:, 13]= data_["pred_boxes"][:, -1]
                 frame_data[:, 14]= 0 # Alpha
-
-                print("Shape of frame data is: ", frame_data.shape, idx)
 
                 with open('%s/%s.csv' % (args.output_dir, curr_seq), 'a') as f:
                     np.savetxt(f, frame_data, delimiter=",")
