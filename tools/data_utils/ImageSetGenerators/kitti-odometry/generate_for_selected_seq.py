@@ -10,7 +10,7 @@ def get_file_name(file):
 # Might need to maintain different file names eg. train_0,4.txt
 # Generating train.txt file with the given sequences
 
-base_path = "../../../..//data/kitti-odometry/"
+base_path = "../../../../data/kitti-odometry/"
 
 # removing existing file
 train_file_path = base_path + 'ImageSets/train.txt'
