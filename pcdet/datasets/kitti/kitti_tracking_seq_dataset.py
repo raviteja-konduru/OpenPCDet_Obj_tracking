@@ -11,7 +11,7 @@ from ..dataset import DatasetTemplate
 from .kitti_dataset import KittiDataset
 
 
-class KittiTrackingSeqDataset(KittiDataset):
+class KittiTrackingSeqDataset(DatasetTemplate):
     def __init__(self, dataset_cfg, class_names, training=True, root_path=None, logger=None):
         """
         Args:
@@ -29,14 +29,14 @@ class KittiTrackingSeqDataset(KittiDataset):
         self.root_split_path = self.root_path / ('training' if self.split != 'test' else 'testing')
 
         split_dir = self.root_path / 'ImageSets' / (self.split + '.txt')
-        self.sample_id_list = [x.strip() for x in open(split_dir).readlines()] if split_dir.exists() else None
+        self.sample_id_list = [x.strip().split(' ') for x in open(split_dir).readlines()] if split_dir.exists() else None # Will now have seq also
 
         self.kitti_infos = []
         self.include_kitti_data(self.mode)
 
     def include_kitti_data(self, mode):
         if self.logger is not None:
-            self.logger.info('Loading KITTI dataset')
+            self.logger.info('Loading KITTI tracking dataset')
         kitti_infos = []
 
         for info_path in self.dataset_cfg.INFO_PATH[mode]:
@@ -60,25 +60,33 @@ class KittiTrackingSeqDataset(KittiDataset):
         self.root_split_path = self.root_path / ('training' if self.split != 'test' else 'testing')
 
         split_dir = self.root_path / 'ImageSets' / (self.split + '.txt')
-        self.sample_id_list = [x.strip() for x in open(split_dir).readlines()] if split_dir.exists() else None
+        self.sample_id_list = [x.strip().split(' ') for x in open(split_dir).readlines()] if split_dir.exists() else None
 
-    def get_lidar(self, idx):
-        lidar_file = self.root_split_path / 'velodyne' / ('%s.bin' % idx)
+    def get_lidar(self, idx_info):
+        idx = idx_info[1]
+        seq = idx_info[0]
+        lidar_file = self.root_split_path / 'velodyne' / seq / ('%s.bin' % idx)
         assert lidar_file.exists()
         return np.fromfile(str(lidar_file), dtype=np.float32).reshape(-1, 4)
 
-    def get_image_shape(self, idx):
-        img_file = self.root_split_path / 'image_2' / ('%s.png' % idx)
+    def get_image_shape(self, idx_info):
+        idx = idx_info[1]
+        seq = idx_info[0]
+        img_file = self.root_split_path / 'image_2' / seq / ('%s.png' % idx)
         assert img_file.exists()
         return np.array(io.imread(img_file).shape[:2], dtype=np.int32)
 
-    def get_label(self, idx):
-        label_file = self.root_split_path / 'label_2' / ('%s.txt' % idx)
+    def get_label(self, idx_info):
+        idx = idx_info[1]
+        seq = idx_info[0]
+        label_file = self.root_split_path / 'label_02' / ('%s.txt' % idx)
         assert label_file.exists()
-        return object3d_kitti.get_objects_from_label(label_file)
+        return object3d_kitti.get_objects_from_label(label_file) #RC:TODO
 
-    def get_calib(self, idx):
-        calib_file = self.root_split_path / 'calib' / ('%s.txt' % idx)
+    def get_calib(self, idx_info):
+        idx = idx_info[1]
+        seq = idx_info[0]
+        calib_file = self.root_split_path / 'calib' / ('%s.txt' % seq)
         assert calib_file.exists()
         return calibration_kitti.Calibration(calib_file)
 
@@ -125,10 +133,10 @@ class KittiTrackingSeqDataset(KittiDataset):
         def process_single_scene(sample_idx):
             print('%s sample_idx: %s' % (self.split, sample_idx))
             info = {}
-            pc_info = {'num_features': 4, 'lidar_idx': sample_idx}
+            pc_info = {'num_features': 4, 'lidar_idx': sample_idx[1], 'seq': sample_idx[0]}
             info['point_cloud'] = pc_info
 
-            image_info = {'image_idx': sample_idx, 'image_shape': self.get_image_shape(sample_idx)}
+            image_info = {'image_idx': sample_idx[1], 'image_shape': self.get_image_shape(sample_idx), 'seq': sample_idx[0]}
             info['image'] = image_info
             calib = self.get_calib(sample_idx)
 
