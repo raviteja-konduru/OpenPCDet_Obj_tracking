@@ -8,8 +8,10 @@ from ...ops.roiaware_pool3d import roiaware_pool3d_utils
 from ...utils import box_utils, calibration_kitti, common_utils, object3d_kitti
 from ..dataset import DatasetTemplate
 
+from .kitti_dataset import KittiDataset
 
-class KittiDataset(DatasetTemplate):
+
+class KittiTrackingSeqDataset(KittiDataset):
     def __init__(self, dataset_cfg, class_names, training=True, root_path=None, logger=None):
         """
         Args:
@@ -19,6 +21,7 @@ class KittiDataset(DatasetTemplate):
             training:
             logger:
         """
+        # RC: Will need to do this for every sequence
         super().__init__(
             dataset_cfg=dataset_cfg, class_names=class_names, training=training, root_path=root_path, logger=logger
         )
