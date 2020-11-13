@@ -3,6 +3,22 @@ from pathlib import Path
 import yaml
 from easydict import EasyDict
 
+import re
+import os
+
+# Adding implicit resolver to have the ability to use environment variables in YAML File
+path_matcher_out = re.compile(r'.*\$\{([^}^{]+)\}.*')
+def path_constructor(loader, node):
+  ''' Extract the matched value, expand env variable, and replace the match '''
+  value = node.value
+
+#   path_matcher = re.compile(r'\$\{([^}^{]+)\}') #TODO: Make above regex and this one same
+  match = re.search(r'\$\{([^}^{]+)\}', value)
+  env_var = match.group()[2:-1]
+  return value[:match.start()] + os.environ.get(env_var) + value[match.end():]
+
+yaml.add_implicit_resolver('!path', path_matcher_out)
+yaml.add_constructor('!path', path_constructor)
 
 def log_config_to_file(cfg, pre='cfg', logger=None):
     for key, val in cfg.items():

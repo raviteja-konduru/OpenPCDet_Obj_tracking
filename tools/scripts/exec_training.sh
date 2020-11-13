@@ -1,5 +1,5 @@
 # Setup Experiment
-EXP_ID='seq_train_0_seq_val_10_seq_test_19'
+export EXP_ID='seq_train_0_seq_val_10_seq_test_19'
 
 # Generate train and test split accordingly
 python ../data_utils/ImageSetGenerators/kitti-odometry/generate_for_selected_seq.py \
@@ -9,10 +9,11 @@ python ../data_utils/ImageSetGenerators/kitti-odometry/generate_for_selected_seq
 --base_path ../../data/kitti-odometry/ \
 --exp_id $EXP_ID
 
-# Generate pickle files with this given data
-python -m pcdet.datasets.kitti.kitti_tracking_seq_dataset \
+# # Generate pickle files with this given data
+
+python -m pcdet.datasets.kitti.kitti_odometry_dataset \
 create_kitti_seq_infos \
-../../tools/cfgs/dataset_configs/kitti_tracking_dataset.yaml \
+../../tools/cfgs/dataset_configs/kitti_odometry_dataset.yaml \
 $EXP_ID
 
 # Train the network using the processed data created above and save the weights
@@ -26,7 +27,11 @@ $EXP_ID
 #     Train with a single GPU:
 #     ------------
 #     python train.py --cfg_file ${CONFIG_FILE}
-# 
+
+cd ../
+pwd
+python train.py --cfg_file cfgs/kitti_models/pv_rcnn_ours.yaml # Making it background
+# python train.py --cfg_file cfgs/kitti_models/pv_rcnn.yaml
 
 
 # Eval Script using the above weights

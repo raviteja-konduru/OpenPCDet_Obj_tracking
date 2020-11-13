@@ -12,7 +12,7 @@ from .kitti_dataset import KittiDataset
 from pathlib import Path
 
 
-class KittiTrackingSeqDataset(DatasetTemplate):
+class KittiOdometryDataset(DatasetTemplate):
     def __init__(self, dataset_cfg, class_names, training=True, root_path=None, logger=None, exp_id=""):
         """
         Args:
@@ -403,7 +403,7 @@ class KittiTrackingSeqDataset(DatasetTemplate):
 
 
 def create_kitti_infos(dataset_cfg, class_names, data_path, save_path, exp_id, workers=4):
-    dataset = KittiTrackingSeqDataset(dataset_cfg=dataset_cfg, class_names=class_names, root_path=data_path, training=False, exp_id=exp_id)
+    dataset = KittiOdometryDataset(dataset_cfg=dataset_cfg, class_names=class_names, root_path=data_path, training=False, exp_id=exp_id)
     train_split, val_split = 'train', 'val'
 
     train_filename = save_path / ('kitti_infos_%s.pkl' % train_split)
