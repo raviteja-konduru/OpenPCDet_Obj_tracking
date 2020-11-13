@@ -31,7 +31,8 @@ class KittiTrackingSeqDataset(DatasetTemplate):
         self.root_split_path = self.root_path / ('training' if self.split != 'test' else 'testing')
 
         split_dir = self.root_path / 'ImageSets' / exp_id / (self.split + '.txt')
-        self.sample_id_list = [x.strip().split(' ') for x in open(split_dir).readlines()] if split_dir.exists() else None # Will now have seq also
+        # Will now have seq also; and is a list of lists
+        self.sample_id_list = [x.strip().split(' ') for x in open(split_dir).readlines()] if split_dir.exists() else None 
 
         self.kitti_infos = []
         self.include_kitti_data(self.mode)
