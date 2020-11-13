@@ -7,6 +7,16 @@ def get_objects_from_label(label_file):
     objects = [Object3d(line) for line in lines]
     return objects
 
+def get_objects_from_seq_label(label_file, idx):
+    with open(label_file, 'r') as f:
+        # lines = f.readlines()
+        lines = np.genfromtxt(f, dtype=str, delimiter=' ')
+        # Need columns 2-end
+        lines = lines[lines_[:, 0].astype(int) == int(idx)]
+        lines = lines[:, 2:]
+
+    objects = [Object3d(line) for line in lines]
+    return objects
 
 def cls_type_to_id(cls_type):
     type_to_id = {'Car': 1, 'Pedestrian': 2, 'Cyclist': 3, 'Van': 4}

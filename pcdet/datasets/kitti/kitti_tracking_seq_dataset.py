@@ -12,7 +12,7 @@ from .kitti_dataset import KittiDataset
 
 
 class KittiTrackingSeqDataset(DatasetTemplate):
-    def __init__(self, dataset_cfg, class_names, training=True, root_path=None, logger=None):
+    def __init__(self, dataset_cfg, class_names, training=True, root_path=None, logger=None, exp_id):
         """
         Args:
             root_path:
@@ -25,6 +25,7 @@ class KittiTrackingSeqDataset(DatasetTemplate):
         super().__init__(
             dataset_cfg=dataset_cfg, class_names=class_names, training=training, root_path=root_path, logger=logger
         )
+        self.exp_id = exp_id
         self.split = self.dataset_cfg.DATA_SPLIT[self.mode]
         self.root_split_path = self.root_path / ('training' if self.split != 'test' else 'testing')
 
@@ -33,6 +34,7 @@ class KittiTrackingSeqDataset(DatasetTemplate):
 
         self.kitti_infos = []
         self.include_kitti_data(self.mode)
+
 
     def include_kitti_data(self, mode):
         if self.logger is not None:
@@ -52,14 +54,14 @@ class KittiTrackingSeqDataset(DatasetTemplate):
         if self.logger is not None:
             self.logger.info('Total samples for KITTI dataset: %d' % (len(kitti_infos)))
 
-    def set_split(self, split):
+    def set_split(self, split, exp_id):
         super().__init__(
             dataset_cfg=self.dataset_cfg, class_names=self.class_names, training=self.training, root_path=self.root_path, logger=self.logger
         )
         self.split = split
         self.root_split_path = self.root_path / ('training' if self.split != 'test' else 'testing')
 
-        split_dir = self.root_path / 'ImageSets' / (self.split + '.txt')
+        split_dir = self.root_path / 'ImageSets' / set_split / (self.split + '.txt')
         self.sample_id_list = [x.strip().split(' ') for x in open(split_dir).readlines()] if split_dir.exists() else None
 
     def get_lidar(self, idx_info):
@@ -72,16 +74,16 @@ class KittiTrackingSeqDataset(DatasetTemplate):
     def get_image_shape(self, idx_info):
         idx = idx_info[1]
         seq = idx_info[0]
-        img_file = self.root_split_path / 'image_2' / seq / ('%s.png' % idx)
+        img_file = self.root_split_path / 'image_02' / seq / ('%s.png' % idx)
         assert img_file.exists()
         return np.array(io.imread(img_file).shape[:2], dtype=np.int32)
 
     def get_label(self, idx_info):
         idx = idx_info[1]
         seq = idx_info[0]
-        label_file = self.root_split_path / 'label_02' / ('%s.txt' % idx)
+        label_file = self.root_split_path / 'label_02' / ('%s.txt' % seq)
         assert label_file.exists()
-        return object3d_kitti.get_objects_from_label(label_file) #RC:TODO
+        return object3d_kitti.get_objects_from_seq_label(label_file, idx)
 
     def get_calib(self, idx_info):
         idx = idx_info[1]
@@ -91,6 +93,7 @@ class KittiTrackingSeqDataset(DatasetTemplate):
         return calibration_kitti.Calibration(calib_file)
 
     def get_road_plane(self, idx):
+        # Turned it off as the data isn't available
         plane_file = self.root_split_path / 'planes' / ('%s.txt' % idx)
         if not plane_file.exists():
             return None
@@ -204,8 +207,8 @@ class KittiTrackingSeqDataset(DatasetTemplate):
     def create_groundtruth_database(self, info_path=None, used_classes=None, split='train'):
         import torch
 
-        database_save_path = Path(self.root_path) / ('gt_database' if split == 'train' else ('gt_database_%s' % split))
-        db_info_save_path = Path(self.root_path) / ('kitti_dbinfos_%s.pkl' % split)
+        database_save_path = Path(self.root_path) / self.exp_id / ('gt_database' if split == 'train' else ('gt_database_%s' % split))
+        db_info_save_path = Path(self.root_path) / self.exp_id / ('kitti_dbinfos_%s.pkl' % split)
 
         database_save_path.mkdir(parents=True, exist_ok=True)
         all_db_infos = {}
@@ -230,7 +233,7 @@ class KittiTrackingSeqDataset(DatasetTemplate):
             ).numpy()  # (nboxes, npoints)
 
             for i in range(num_obj):
-                filename = '%s_%s_%d.bin' % (sample_idx, names[i], i)
+                filename = '%s_%s_%s_%d.bin' % (sample_idx[0], sample_idx[1], names[i], i)
                 filepath = database_save_path / filename
                 gt_points = points[point_indices[i] > 0]
 
@@ -307,7 +310,7 @@ class KittiTrackingSeqDataset(DatasetTemplate):
 
         annos = []
         for index, box_dict in enumerate(pred_dicts):
-            frame_id = batch_dict['frame_id'][index]
+            frame_id = batch_dict['frame_id'][index] #RC:Correct frame_id from where it comes from: TODO
 
             single_pred_dict = generate_single_sample_dict(index, box_dict)
             single_pred_dict['frame_id'] = frame_id
@@ -355,7 +358,7 @@ class KittiTrackingSeqDataset(DatasetTemplate):
 
         info = copy.deepcopy(self.kitti_infos[index])
 
-        sample_idx = info['point_cloud']['lidar_idx']
+        sample_idx = [info['point_cloud']['lidar_idx'], info['point_cloud']['seq']]
 
         points = self.get_lidar(sample_idx)
         calib = self.get_calib(sample_idx)
@@ -368,7 +371,7 @@ class KittiTrackingSeqDataset(DatasetTemplate):
 
         input_dict = {
             'points': points,
-            'frame_id': sample_idx,
+            'frame_id': sample_idx[0] + "_" + sample_idx[1],
             'calib': calib,
         }
 
@@ -394,8 +397,8 @@ class KittiTrackingSeqDataset(DatasetTemplate):
         return data_dict
 
 
-def create_kitti_infos(dataset_cfg, class_names, data_path, save_path, workers=4):
-    dataset = KittiDataset(dataset_cfg=dataset_cfg, class_names=class_names, root_path=data_path, training=False)
+def create_kitti_infos(dataset_cfg, class_names, data_path, save_path, exp_id, workers=4):
+    dataset = KittiTrackingSeqDataset(dataset_cfg=dataset_cfg, class_names=class_names, root_path=data_path, training=False, exp_id=exp_id)
     train_split, val_split = 'train', 'val'
 
     train_filename = save_path / ('kitti_infos_%s.pkl' % train_split)
@@ -405,13 +408,13 @@ def create_kitti_infos(dataset_cfg, class_names, data_path, save_path, workers=4
 
     print('---------------Start to generate data infos---------------')
 
-    dataset.set_split(train_split)
+    dataset.set_split(train_split, exp_id)
     kitti_infos_train = dataset.get_infos(num_workers=workers, has_label=True, count_inside_pts=True)
     with open(train_filename, 'wb') as f:
         pickle.dump(kitti_infos_train, f)
     print('Kitti info train file is saved to %s' % train_filename)
 
-    dataset.set_split(val_split)
+    dataset.set_split(val_split, exp_id)
     kitti_infos_val = dataset.get_infos(num_workers=workers, has_label=True, count_inside_pts=True)
     with open(val_filename, 'wb') as f:
         pickle.dump(kitti_infos_val, f)
@@ -421,14 +424,14 @@ def create_kitti_infos(dataset_cfg, class_names, data_path, save_path, workers=4
         pickle.dump(kitti_infos_train + kitti_infos_val, f)
     print('Kitti info trainval file is saved to %s' % trainval_filename)
 
-    dataset.set_split('test')
+    dataset.set_split('test', exp_id)
     kitti_infos_test = dataset.get_infos(num_workers=workers, has_label=False, count_inside_pts=False)
     with open(test_filename, 'wb') as f:
         pickle.dump(kitti_infos_test, f)
     print('Kitti info test file is saved to %s' % test_filename)
 
     print('---------------Start create groundtruth database for data augmentation---------------')
-    dataset.set_split(train_split)
+    dataset.set_split(train_split, exp_id)
     dataset.create_groundtruth_database(train_filename, split=train_split)
 
     print('---------------Data preparation Done---------------')
@@ -436,15 +439,20 @@ def create_kitti_infos(dataset_cfg, class_names, data_path, save_path, workers=4
 
 if __name__ == '__main__':
     import sys
-    if sys.argv.__len__() > 1 and sys.argv[1] == 'create_kitti_infos':
+    if sys.argv.__len__() > 1 and sys.argv[1] == 'create_kitti_seq_infos':
         import yaml
         from pathlib import Path
         from easydict import EasyDict
+
+        # Experiment ID to save the pickle files that will be generated
+        exp_id = sys.argv[2]
+
         dataset_cfg = EasyDict(yaml.load(open(sys.argv[2])))
         ROOT_DIR = (Path(__file__).resolve().parent / '../../../').resolve()
         create_kitti_infos(
             dataset_cfg=dataset_cfg,
             class_names=['Car', 'Pedestrian', 'Cyclist'],
-            data_path=ROOT_DIR / 'data' / 'kitti',
-            save_path=ROOT_DIR / 'data' / 'kitti'
+            data_path=ROOT_DIR / 'data' / 'kitti-odometry',
+            save_path=ROOT_DIR / 'data' / 'kitti-odometry' / exp_id,
+            exp_id=exp_id
         )
