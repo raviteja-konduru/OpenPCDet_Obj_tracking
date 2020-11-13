@@ -9,8 +9,8 @@ DATA_SPLIT: {
 }
 
 INFO_PATH: {
-    'train': [kitti_track_seq_infos_train.pkl],
-    'test': [kitti_track_seq_infos_val.pkl],
+    'train': [splits/seq_train_0_seq_val_10_seq_test_19/kitti_infos_train.pkl],
+    'test': [splits/seq_train_0_seq_val_10_seq_test_19/kitti_infos_val.pkl], # TODO: Better to change name
 }
 
 FOV_POINTS_ONLY: True

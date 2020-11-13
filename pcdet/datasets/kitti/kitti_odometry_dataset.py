@@ -11,7 +11,6 @@ from ..dataset import DatasetTemplate
 from .kitti_dataset import KittiDataset
 from pathlib import Path
 
-
 class KittiOdometryDataset(DatasetTemplate):
     def __init__(self, dataset_cfg, class_names, training=True, root_path=None, logger=None, exp_id=""):
         """
@@ -45,6 +44,7 @@ class KittiOdometryDataset(DatasetTemplate):
 
         for info_path in self.dataset_cfg.INFO_PATH[mode]:
             info_path = self.root_path / info_path
+
             if not info_path.exists():
                 continue
             with open(info_path, 'rb') as f:
@@ -70,6 +70,7 @@ class KittiOdometryDataset(DatasetTemplate):
         idx = idx_info[1]
         seq = idx_info[0]
         lidar_file = self.root_split_path / 'velodyne' / seq / ('%s.bin' % idx)
+        print("From ge_lidar:", idx_info)
         assert lidar_file.exists()
         return np.fromfile(str(lidar_file), dtype=np.float32).reshape(-1, 4)
 
@@ -363,7 +364,7 @@ class KittiOdometryDataset(DatasetTemplate):
 
         info = copy.deepcopy(self.kitti_infos[index])
 
-        sample_idx = [info['point_cloud']['lidar_idx'], info['point_cloud']['seq']]
+        sample_idx = [info['point_cloud']['seq'], info['point_cloud']['lidar_idx']]
 
         points = self.get_lidar(sample_idx)
         calib = self.get_calib(sample_idx)
