@@ -10,6 +10,7 @@ from ..dataset import DatasetTemplate
 
 from .kitti_dataset import KittiDataset
 from pathlib import Path
+import os
 
 class KittiOdometryDataset(DatasetTemplate):
     def __init__(self, dataset_cfg, class_names, training=True, root_path=None, logger=None, exp_id=""):
@@ -43,6 +44,11 @@ class KittiOdometryDataset(DatasetTemplate):
         kitti_infos = []
 
         for info_path in self.dataset_cfg.INFO_PATH[mode]:
+
+            # Replacing placeholder @@@ with actual environment variable , TODO: A crude way to solve the issue
+            env_var_value = os.environ.get("EXP_ID")
+            info_path = info_path.replace("@@@", env_var_value)
+
             info_path = self.root_path / info_path
 
             if not info_path.exists():
@@ -70,7 +76,6 @@ class KittiOdometryDataset(DatasetTemplate):
         idx = idx_info[1]
         seq = idx_info[0]
         lidar_file = self.root_split_path / 'velodyne' / seq / ('%s.bin' % idx)
-        print("From ge_lidar:", idx_info)
         assert lidar_file.exists()
         return np.fromfile(str(lidar_file), dtype=np.float32).reshape(-1, 4)
 
