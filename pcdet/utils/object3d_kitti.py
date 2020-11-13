@@ -9,11 +9,12 @@ def get_objects_from_label(label_file):
 
 def get_objects_from_seq_label(label_file, idx):
     with open(label_file, 'r') as f:
-        # lines = f.readlines()
+
         lines = np.genfromtxt(f, dtype=str, delimiter=' ')
         # Need columns 2-end
-        lines = lines[lines_[:, 0].astype(int) == int(idx)]
+        lines = lines[lines[:, 0].astype(int) == int(idx)]
         lines = lines[:, 2:]
+        lines = map(lambda x: " ".join(x), lines.tolist())
 
     objects = [Object3d(line) for line in lines]
     return objects

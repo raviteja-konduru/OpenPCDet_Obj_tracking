@@ -9,10 +9,11 @@ from ...utils import box_utils, calibration_kitti, common_utils, object3d_kitti
 from ..dataset import DatasetTemplate
 
 from .kitti_dataset import KittiDataset
+from pathlib import Path
 
 
 class KittiTrackingSeqDataset(DatasetTemplate):
-    def __init__(self, dataset_cfg, class_names, training=True, root_path=None, logger=None, exp_id):
+    def __init__(self, dataset_cfg, class_names, training=True, root_path=None, logger=None, exp_id=""):
         """
         Args:
             root_path:
@@ -29,7 +30,7 @@ class KittiTrackingSeqDataset(DatasetTemplate):
         self.split = self.dataset_cfg.DATA_SPLIT[self.mode]
         self.root_split_path = self.root_path / ('training' if self.split != 'test' else 'testing')
 
-        split_dir = self.root_path / 'ImageSets' / (self.split + '.txt')
+        split_dir = self.root_path / 'ImageSets' / exp_id / (self.split + '.txt')
         self.sample_id_list = [x.strip().split(' ') for x in open(split_dir).readlines()] if split_dir.exists() else None # Will now have seq also
 
         self.kitti_infos = []
@@ -61,7 +62,7 @@ class KittiTrackingSeqDataset(DatasetTemplate):
         self.split = split
         self.root_split_path = self.root_path / ('training' if self.split != 'test' else 'testing')
 
-        split_dir = self.root_path / 'ImageSets' / set_split / (self.split + '.txt')
+        split_dir = self.root_path / 'ImageSets' / exp_id / (self.split + '.txt')
         self.sample_id_list = [x.strip().split(' ') for x in open(split_dir).readlines()] if split_dir.exists() else None
 
     def get_lidar(self, idx_info):
@@ -207,10 +208,12 @@ class KittiTrackingSeqDataset(DatasetTemplate):
     def create_groundtruth_database(self, info_path=None, used_classes=None, split='train'):
         import torch
 
-        database_save_path = Path(self.root_path) / self.exp_id / ('gt_database' if split == 'train' else ('gt_database_%s' % split))
-        db_info_save_path = Path(self.root_path) / self.exp_id / ('kitti_dbinfos_%s.pkl' % split)
+        database_save_path = Path(self.root_path) / ('gt_database' if split == 'train' else ('gt_database_%s' % split)) / self.exp_id
+        db_info_save_path_ = Path(self.root_path) / "splits" / self.exp_id
+        db_info_save_path = db_info_save_path_ / ('kitti_dbinfos_%s.pkl' % split)
 
         database_save_path.mkdir(parents=True, exist_ok=True)
+        
         all_db_infos = {}
 
         with open(info_path, 'rb') as f:
@@ -220,7 +223,8 @@ class KittiTrackingSeqDataset(DatasetTemplate):
             print('gt_database sample: %d/%d' % (k + 1, len(infos)))
             info = infos[k]
             sample_idx = info['point_cloud']['lidar_idx']
-            points = self.get_lidar(sample_idx)
+            seq = info['point_cloud']['seq']
+            points = self.get_lidar([seq, sample_idx])
             annos = info['annos']
             names = annos['name']
             difficulty = annos['difficulty']
@@ -406,6 +410,8 @@ def create_kitti_infos(dataset_cfg, class_names, data_path, save_path, exp_id, w
     trainval_filename = save_path / 'kitti_infos_trainval.pkl'
     test_filename = save_path / 'kitti_infos_test.pkl'
 
+    Path(save_path).mkdir(parents=True, exist_ok=True)
+
     print('---------------Start to generate data infos---------------')
 
     dataset.set_split(train_split, exp_id)
@@ -444,15 +450,16 @@ if __name__ == '__main__':
         from pathlib import Path
         from easydict import EasyDict
 
-        # Experiment ID to save the pickle files that will be generated
-        exp_id = sys.argv[2]
-
         dataset_cfg = EasyDict(yaml.load(open(sys.argv[2])))
         ROOT_DIR = (Path(__file__).resolve().parent / '../../../').resolve()
+
+        # Experiment ID to save the pickle files that will be generated
+        exp_id = sys.argv[3]
+
         create_kitti_infos(
             dataset_cfg=dataset_cfg,
             class_names=['Car', 'Pedestrian', 'Cyclist'],
             data_path=ROOT_DIR / 'data' / 'kitti-odometry',
-            save_path=ROOT_DIR / 'data' / 'kitti-odometry' / exp_id,
+            save_path=ROOT_DIR / 'data' / 'kitti-odometry' / 'splits' /exp_id,
             exp_id=exp_id
         )
