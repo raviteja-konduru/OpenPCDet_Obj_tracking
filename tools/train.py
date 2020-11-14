@@ -16,6 +16,8 @@ from pcdet.models import build_network, model_fn_decorator
 from pcdet.utils import common_utils
 from train_utils.optimization import build_optimizer, build_scheduler
 from train_utils.train_utils import train_model
+import os
+
 
 def parse_config():
     parser = argparse.ArgumentParser(description='arg parser')
@@ -77,7 +79,12 @@ def main():
         common_utils.set_random_seed(666)
 
     output_dir = cfg.ROOT_DIR / 'output' / cfg.EXP_GROUP_PATH / cfg.TAG / args.extra_tag
-    ckpt_dir = output_dir / 'ckpt'
+    exp_id = os.environ.get("EXP_ID")
+    if exp_id == "":
+        ckpt_dir = output_dir / 'ckpt' 
+    else:
+        ckpt_dir = output_dir / 'ckpt' / exp_id
+
     output_dir.mkdir(parents=True, exist_ok=True)
     ckpt_dir.mkdir(parents=True, exist_ok=True)
 

@@ -14,6 +14,15 @@ def get_objects_from_seq_label(label_file, idx):
         # Need columns 2-end
         lines = lines[lines[:, 0].astype(int) == int(idx)]
         lines = lines[:, 2:]
+        
+        # first DontCare indices are extracted RC:TODO - to check if it helps
+        
+        # inds = lines[:, 0] == 'DontCare'
+        # dcs = lines[inds, :]
+        # nodcs = np.delete(lines, inds, 0)
+        # rene = np.vstack((nodcs, dcs))
+        # lines = map(lambda x: " ".join(x), rene.tolist())
+
         lines = map(lambda x: " ".join(x), lines.tolist())
 
     objects = [Object3d(line) for line in lines]

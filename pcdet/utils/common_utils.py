@@ -27,7 +27,9 @@ def drop_info_with_name(info, name):
     ret_info = {}
     keep_indices = [i for i, x in enumerate(info['name']) if x != name]
     for key in info.keys():
-        ret_info[key] = info[key][keep_indices]
+        if key != "gt_boxes_lidar":
+            ret_info[key] = info[key][keep_indices]
+            
     return ret_info
 
 
