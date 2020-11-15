@@ -37,6 +37,9 @@ class KittiOdometryDataset(DatasetTemplate):
         self.kitti_infos = []
         self.include_kitti_data(self.mode)
 
+        label_split_files_path = self.root_split_path / 'label_02_splits'
+        Path(label_split_files_path).mkdir(parents=True, exist_ok=True)
+
 
     def include_kitti_data(self, mode):
         if self.logger is not None:
@@ -89,9 +92,10 @@ class KittiOdometryDataset(DatasetTemplate):
     def get_label(self, idx_info):
         idx = idx_info[1]
         seq = idx_info[0]
-        label_file = self.root_split_path / 'label_02' / ('%s.txt' % seq)
-        assert label_file.exists()
-        return object3d_kitti.get_objects_from_seq_label(label_file, idx)
+        label_file_parent = self.root_split_path / 'label_02' / ('%s.txt' % seq)
+        label_file = self.root_split_path / 'label_02_splits' / ('%s_%s.txt' % (seq, idx))
+        assert label_file_parent.exists()
+        return object3d_kitti.get_objects_from_seq_label(label_file_parent, label_file, idx)
 
     def get_calib(self, idx_info):
         idx = idx_info[1]
@@ -167,9 +171,16 @@ class KittiOdometryDataset(DatasetTemplate):
                 annotations['truncated'] = np.array([obj.truncation for obj in obj_list])
                 annotations['occluded'] = np.array([obj.occlusion for obj in obj_list])
                 annotations['alpha'] = np.array([obj.alpha for obj in obj_list])
-                annotations['bbox'] = np.concatenate([obj.box2d.reshape(1, 4) for obj in obj_list], axis=0)
+                
+                try:
+                    annotations['bbox'] = np.concatenate([obj.box2d.reshape(1, 4) for obj in obj_list], axis=0)
+                    annotations['location'] = np.concatenate([obj.loc.reshape(1, 3) for obj in obj_list], axis=0)
+                except:
+                    print("No objs found at sample_idx", sample_idx)
+                    annotations['bbox'] = np.array([])
+                    annotations['location'] = np.array([])
+
                 annotations['dimensions'] = np.array([[obj.l, obj.h, obj.w] for obj in obj_list])  # lhw(camera) format
-                annotations['location'] = np.concatenate([obj.loc.reshape(1, 3) for obj in obj_list], axis=0)
                 annotations['rotation_y'] = np.array([obj.ry for obj in obj_list])
                 annotations['score'] = np.array([obj.score for obj in obj_list])
                 annotations['difficulty'] = np.array([obj.level for obj in obj_list], np.int32)
@@ -179,14 +190,19 @@ class KittiOdometryDataset(DatasetTemplate):
                 index = list(range(num_objects)) + [-1] * (num_gt - num_objects)
                 annotations['index'] = np.array(index, dtype=np.int32)
 
-                loc = annotations['location'][:num_objects]
-                dims = annotations['dimensions'][:num_objects]
-                rots = annotations['rotation_y'][:num_objects]
-                loc_lidar = calib.rect_to_lidar(loc)
-                l, h, w = dims[:, 0:1], dims[:, 1:2], dims[:, 2:3]
-                loc_lidar[:, 2] += h[:, 0] / 2
-                gt_boxes_lidar = np.concatenate([loc_lidar, l, w, h, -(np.pi / 2 + rots[..., np.newaxis])], axis=1)
-                annotations['gt_boxes_lidar'] = gt_boxes_lidar
+                try:
+                    loc = annotations['location'][:num_objects]
+                    dims = annotations['dimensions'][:num_objects]
+                    rots = annotations['rotation_y'][:num_objects]
+                    loc_lidar = calib.rect_to_lidar(loc)
+                    l, h, w = dims[:, 0:1], dims[:, 1:2], dims[:, 2:3]
+                    loc_lidar[:, 2] += h[:, 0] / 2
+                    gt_boxes_lidar = np.concatenate([loc_lidar, l, w, h, -(np.pi / 2 + rots[..., np.newaxis])], axis=1)
+                    annotations['gt_boxes_lidar'] = gt_boxes_lidar
+                except:
+                    print("handling no objs found case for gt_boxes_lidar")
+                    gt_boxes_lidar = np.array([])
+                    annotations['gt_boxes_lidar'] = gt_boxes_lidar
 
                 info['annos'] = annotations
 
@@ -197,7 +213,12 @@ class KittiOdometryDataset(DatasetTemplate):
 
                     fov_flag = self.get_fov_flag(pts_rect, info['image']['image_shape'], calib)
                     pts_fov = points[fov_flag]
-                    corners_lidar = box_utils.boxes_to_corners_3d(gt_boxes_lidar)
+                    
+                    try:
+                        corners_lidar = box_utils.boxes_to_corners_3d(gt_boxes_lidar)
+                    except:
+                        pass
+
                     num_points_in_gt = -np.ones(num_gt, dtype=np.int32)
 
                     for k in range(num_objects):
@@ -210,6 +231,7 @@ class KittiOdometryDataset(DatasetTemplate):
         sample_id_list = sample_id_list if sample_id_list is not None else self.sample_id_list
         with futures.ThreadPoolExecutor(num_workers) as executor:
             infos = executor.map(process_single_scene, sample_id_list)
+
         return list(infos)
 
     def create_groundtruth_database(self, info_path=None, used_classes=None, split='train'):
@@ -393,7 +415,13 @@ class KittiOdometryDataset(DatasetTemplate):
             annos = common_utils.drop_info_with_name(annos, name='DontCare')
             loc, dims, rots = annos['location'], annos['dimensions'], annos['rotation_y']
             gt_names = annos['name']
-            gt_boxes_camera = np.concatenate([loc, dims, rots[..., np.newaxis]], axis=1).astype(np.float32)
+            try:
+                gt_boxes_camera = np.concatenate([loc, dims, rots[..., np.newaxis]], axis=1).astype(np.float32)
+            except:
+                # import pdb
+                # pdb.set_trace()
+                print("gt_boxes_camera exception in np concatenate")
+                
             gt_boxes_lidar = box_utils.boxes3d_kitti_camera_to_lidar(gt_boxes_camera, calib)
 
             input_dict.update({

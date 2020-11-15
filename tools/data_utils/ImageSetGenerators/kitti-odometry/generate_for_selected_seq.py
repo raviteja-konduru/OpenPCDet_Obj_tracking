@@ -6,7 +6,7 @@ from pathlib import Path
 def get_file_name(file):
     return file.split(".")[0]
 
-def generate_file_with_given_seq(base_path, file_name, selected_seq, exp_id):
+def generate_file_with_given_seq(base_path, data_ref, file_name, selected_seq, exp_id):
     
     # Creating directory
     Path(base_path + 'ImageSets/' + exp_id + "/").mkdir(parents=True, exist_ok=True)
@@ -18,7 +18,12 @@ def generate_file_with_given_seq(base_path, file_name, selected_seq, exp_id):
 
     for seq in selected_seq:
 
-        seq_path = base_path + "training/velodyne/%s/"%(seq)
+        if data_ref == "train":
+            data_ref_path = "training"
+        else:
+            data_ref_path = "testing"
+
+        seq_path = base_path + data_ref_path + "/velodyne/%s/"%(seq)
         files_list = list(map(get_file_name, os.listdir(seq_path)))
 
         np_arr = np.empty((len(files_list), 2), dtype="object")
@@ -59,6 +64,7 @@ if __name__ == '__main__':
     # Generate train.txt
     generate_file_with_given_seq(
         base_path = base_path, 
+        data_ref="train",
         file_name="train",
         selected_seq=train_sequences,
         exp_id=exp_id
@@ -67,6 +73,7 @@ if __name__ == '__main__':
     # Generate val.txt
     generate_file_with_given_seq(
         base_path = base_path, 
+        data_ref="train",
         file_name="val",
         selected_seq=val_sequences,
         exp_id=exp_id
@@ -75,6 +82,7 @@ if __name__ == '__main__':
     # Generate test.txt
     generate_file_with_given_seq(
         base_path = base_path, 
+        data_ref="test",
         file_name="test",
         selected_seq=val_sequences,
         exp_id=exp_id

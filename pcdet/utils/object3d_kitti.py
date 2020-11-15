@@ -7,26 +7,39 @@ def get_objects_from_label(label_file):
     objects = [Object3d(line) for line in lines]
     return objects
 
-def get_objects_from_seq_label(label_file, idx):
-    with open(label_file, 'r') as f:
+def get_objects_from_seq_label(label_file_parent, label_file, idx):
 
-        lines = np.genfromtxt(f, dtype=str, delimiter=' ')
-        # Need columns 2-end
-        lines = lines[lines[:, 0].astype(int) == int(idx)]
-        lines = lines[:, 2:]
+    if label_file.exists():
+        with open(label_file, 'r') as f:
+            lines = f.readlines()
         
-        # first DontCare indices are extracted RC:TODO - to check if it helps
-        
-        # inds = lines[:, 0] == 'DontCare'
-        # dcs = lines[inds, :]
-        # nodcs = np.delete(lines, inds, 0)
-        # rene = np.vstack((nodcs, dcs))
-        # lines = map(lambda x: " ".join(x), rene.tolist())
+        objects = [Object3d(line) for line in lines]
+        return objects
+    
+    else: 
+        with open(label_file_parent, 'r') as f:
 
-        lines = map(lambda x: " ".join(x), lines.tolist())
+            lines = np.genfromtxt(f, dtype=str, delimiter=' ')
+            # Need columns 2-end
+            lines = lines[lines[:, 0].astype(int) == int(idx)]
+            lines = lines[:, 2:]
+            
+            # Creating the file
+            with open(label_file, 'w+') as f_local:
+                np.savetxt(f_local, np.array(lines), delimiter=" ", fmt='%s')
 
-    objects = [Object3d(line) for line in lines]
-    return objects
+            # first DontCare indices are extracted RC:TODO - to check if it helps
+            
+            # inds = lines[:, 0] == 'DontCare'
+            # dcs = lines[inds, :]
+            # nodcs = np.delete(lines, inds, 0)
+            # rene = np.vstack((nodcs, dcs))
+            # lines = map(lambda x: " ".join(x), rene.tolist())
+
+            lines = map(lambda x: " ".join(x), lines.tolist())
+
+        objects = [Object3d(line) for line in lines]
+        return objects
 
 def cls_type_to_id(cls_type):
     type_to_id = {'Car': 1, 'Pedestrian': 2, 'Cyclist': 3, 'Van': 4}
