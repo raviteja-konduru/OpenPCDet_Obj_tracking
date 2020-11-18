@@ -45,14 +45,9 @@ def boxes_to_corners_3d(boxes3d):
         [1, 1, 1], [1, -1, 1], [-1, -1, 1], [-1, 1, 1],
     )) / 2
 
-    try:
-        corners3d = boxes3d[:, None, 3:6].repeat(1, 8, 1) * template[None, :, :]
-        corners3d = common_utils.rotate_points_along_z(corners3d.view(-1, 8, 3), boxes3d[:, 6]).view(-1, 8, 3)
-        corners3d += boxes3d[:, None, 0:3]
-    except:
-        # Handling 0 case
-        corners3d = np.array([])
-        is_numpy = True
+    corners3d = boxes3d[:, None, 3:6].repeat(1, 8, 1) * template[None, :, :]
+    corners3d = common_utils.rotate_points_along_z(corners3d.view(-1, 8, 3), boxes3d[:, 6]).view(-1, 8, 3)
+    corners3d += boxes3d[:, None, 0:3]
 
     return corners3d.numpy() if is_numpy else corners3d
 

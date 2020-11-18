@@ -412,7 +412,7 @@ class KittiOdometryDataset(DatasetTemplate):
 
         if 'annos' in info:
             annos = info['annos']
-            annos = common_utils.drop_info_with_name(annos, name='DontCare')
+            annos = common_utils.drop_info_with_name_kitti_odom(annos, name='DontCare')
             loc, dims, rots = annos['location'], annos['dimensions'], annos['rotation_y']
             gt_names = annos['name']
             try:
