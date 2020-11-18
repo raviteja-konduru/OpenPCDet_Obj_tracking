@@ -15,6 +15,11 @@ from pcdet.utils import common_utils
 import pickle as pkl
 import os
 
+from visual_utils import visualize_utils as V
+import pickle as pkl
+import os
+
+mlab.options.offscreen = True
 
 class DemoDataset(DatasetTemplate):
     def __init__(self, dataset_cfg, class_names, training=True, root_path=None, logger=None, ext='.bin'):
@@ -36,50 +41,24 @@ class DemoDataset(DatasetTemplate):
         data_file_list.sort()
         self.sample_file_list = data_file_list
 
-from visual_utils import visualize_utils as V
-import pickle as pkl
-import os
+    def __len__(self):
+        return len(self.sample_file_list)
 
-mlab.options.offscreen = True
+    def __getitem__(self, index):
+        if self.ext == '.bin':
+            points = np.fromfile(self.sample_file_list[index], dtype=np.float32).reshape(-1, 4)
+        elif self.ext == '.npy':
+            points = np.load(self.sample_file_list[index])
+        else:
+            raise NotImplementedError
 
-# class DemoDataset(DatasetTemplate):
-#     def __init__(self, dataset_cfg, class_names, training=True, root_path=None, logger=None, ext='.bin'):
-#         """
-#         Args:
-#             root_path:
-#             dataset_cfg:
-#             class_names:
-#             training:
-#             logger:
-#         """
-#         super().__init__(
-#             dataset_cfg=dataset_cfg, class_names=class_names, training=training, root_path=root_path, logger=logger
-#         )
-#         self.root_path = root_path
-#         self.ext = ext
-#         data_file_list = glob.glob(str(root_path / f'*{self.ext}')) if self.root_path.is_dir() else [self.root_path]
+        input_dict = {
+            'points': points,
+            'frame_id': index,
+        }
 
-#         data_file_list.sort()
-#         self.sample_file_list = data_file_list
-
-#     def __len__(self):
-#         return len(self.sample_file_list)
-
-#     def __getitem__(self, index):
-#         if self.ext == '.bin':
-#             points = np.fromfile(self.sample_file_list[index], dtype=np.float32).reshape(-1, 4)
-#         elif self.ext == '.npy':
-#             points = np.load(self.sample_file_list[index])
-#         else:
-#             raise NotImplementedError
-
-#         input_dict = {
-#             'points': points,
-#             'frame_id': index,
-#         }
-
-#         data_dict = self.prepare_data(data_dict=input_dict)
-#         return data_dict
+        data_dict = self.prepare_data(data_dict=input_dict)
+        return data_dict
 
 
 def parse_config():
@@ -96,9 +75,9 @@ def parse_config():
 
     args = parser.parse_args()
 
-    # cfg_from_yaml_file(args.cfg_file, cfg)
+    cfg_from_yaml_file(args.cfg_file, cfg)
 
-    return args, {}
+    return args, cfg
 
 
 def main():
