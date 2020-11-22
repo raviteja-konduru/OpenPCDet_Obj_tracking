@@ -28,7 +28,22 @@ def drop_info_with_name(info, name):
     keep_indices = [i for i, x in enumerate(info['name']) if x != name]
     for key in info.keys():
         ret_info[key] = info[key][keep_indices]
+            
     return ret_info
+
+def drop_info_with_name_kitti_odom(info, name):
+    ret_info = {}
+    keep_indices = [i for i, x in enumerate(info['name']) if x != name]
+    for key in info.keys():
+
+        if key != "gt_boxes_lidar":
+            """
+                Doing this way as to handle the specific case of dropping Dontcares for gt_boxes_lidar as they were already dropped.
+                TODO: To check how it affeects in other cases
+            """
+            ret_info[key] = info[key][keep_indices]
+            
+    return ret_info    
 
 
 def rotate_points_along_z(points, angle):

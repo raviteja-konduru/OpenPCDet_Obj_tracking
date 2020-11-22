@@ -7,14 +7,13 @@ data/
 venv/
 *.idea/
 *.so
-*.yaml
-*.sh 
 *.pth
 *.pkl
 *.zip
 *.bin
 output_backup/
 .ipynb_checkpoints/
+*.sh
+tools/scripts/*.sh
 /.ipynb_checkpoints
 output*/
-Icon[]
