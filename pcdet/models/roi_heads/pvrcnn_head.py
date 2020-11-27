@@ -172,6 +172,8 @@ class PVRCNNHead(RoIHeadTemplate):
             )
             batch_dict['batch_cls_preds'] = batch_cls_preds
             batch_dict['batch_box_preds'] = batch_box_preds
+            # 5D tensor to be saved as database. May be flattened later. Shape: (Batch_size*Num_objects, C, 6, 6, 6) = (BN, 128, 6, 6, 6)
+            batch_dict["pooled_features"] = pooled_features
             batch_dict['cls_preds_normalized'] = False
         else:
             targets_dict['rcnn_cls'] = rcnn_cls
