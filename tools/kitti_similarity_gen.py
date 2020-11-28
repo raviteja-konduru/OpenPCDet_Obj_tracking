@@ -8,7 +8,8 @@ import torch
 from pcdet.config import cfg, cfg_from_yaml_file
 from pcdet.datasets import DatasetTemplate
 from pcdet.models import build_network, load_data_to_gpu
-from pcdet.utils import common_utils
+from pcdet.utils import common_utils, box_utils, calibration_kitti
+from pcdet.ops.iou3d_nms.iou3d_nms_utils import boxes_iou3d_gpu
 
 import pickle as pkl
 import os
@@ -57,6 +58,12 @@ class DemoDataset(DatasetTemplate):
         data_dict = self.prepare_data(data_dict=input_dict)
         return data_dict
 
+def get_calib(cfg, seq_num):
+
+    root_split_path = Path("../data/kitti-odometry/training/calib")
+    calib_file = root_split_path / ('%s.txt' % seq_num)
+    assert calib_file.exists()
+    return calibration_kitti.Calibration(calib_file)
 
 def parse_config():
     parser = argparse.ArgumentParser(description='arg parser')
@@ -82,7 +89,7 @@ def main():
     curr_seq = args.seq_path.split("/")[-1]
 
     # Map dictionary - string labels --> int
-    map_dict = {'Car': 1, 'Pedestrian': 2, 'Cyclist': 3, 'Van': 4}    
+    map_dict = {'Car': 1, 'Pedestrian': 2, 'Cyclist': 3, 'Van': 4, 'Person_sitting': 4, 'Truck': 5}
     
     logger = common_utils.create_logger()
     logger.info('-----------------Quick Demo of OpenPCDet-------------------------')
@@ -99,8 +106,8 @@ def main():
 
     # Loading the ground truth from kitti-odometry
     gt_path = "/".join(args.seq_path.split("/")[0:-2]) + "/label_02/" + curr_seq + ".txt"
-    gt_data = 
-    gt_data = np.genfromtxt(gt_path, dtype=str)[:, [0, 2, 13, 14, 15, 10, 11, 12, 16, 1]]
+    # gt_data = np.genfromtxt(gt_path, dtype=str)[:, [0, 2, 13, 14, 15, 10, 11, 12, 16, 1]]
+    gt_data = np.genfromtxt(gt_path, dtype=str)[:, [0, 2, 13, 14, 15, 12, 10, 11, 16, 1]]
 
     gt_data = gt_data[gt_data[:, 1] != 'DontCare', :]
     gt_labels=gt_data[:, 1].reshape((-1, 1))
@@ -116,16 +123,18 @@ def main():
     gt_data = gt_data.astype(np.float)
 
     # Set IOU threshold
-    IOU_THRESH = 0.80
+    IOU_THRESH = 0.5
 
     with torch.no_grad():
+
         for idx, data_dict in enumerate(demo_dataset):
 
             logger.info(f'Visualized sample index: \t{idx + 1}')
 
             # shape: Num_objs * 8
             mask = gt_data[:, 0] == idx
-            relevant_gt_boxes = gt_data[mask][:, 1:]
+            relevant_gt_boxes = gt_data[mask][:, 1:-1]
+            relevant_gt_ids = gt_data[mask][:, -1]
             relevant_gt_labels = gt_labels[mask]
 
             data_dict = demo_dataset.collate_batch([data_dict])
@@ -146,32 +155,93 @@ def main():
             # assert(pred_labels.shape == relevant_gt_labels.shape)
             assert(pred_labels.dtype == relevant_gt_labels.dtype)
 
+            # To transform relevant_gt_boxes to lidar coordinates
+            calib = get_calib(cfg, curr_seq)
+            relevant_gt_boxes_trnsfm = box_utils.boxes3d_kitti_camera_to_lidar(relevant_gt_boxes, calib)
+
             data_ = {
                 "data_dict": data_dict['points'][:, 1:].cpu().detach().numpy(),
                 "pred_boxes": pred_dicts[0]["pred_boxes"].cpu().detach().numpy(),
                 "pred_labels": pred_dicts[0]["pred_labels"].cpu().detach().numpy(),
                 "pred_scores": pred_dicts[0]["pred_scores"].cpu().detach().numpy(),
-                "gt_boxes": relevant_gt_boxes,
+                "gt_boxes": relevant_gt_boxes_trnsfm,
                 "gt_labels": relevant_gt_labels,
                 "gt_scores": gt_scores,
-                "pooled_features": pred_dicts[0]["pooled_features"].cpu().detach().numpy()
+                "gt_ids": relevant_gt_ids
+                # "pooled_features": pred_dicts[0]["pooled_features"].cpu().detach().numpy()
             }
+            pooled_features = pred_dicts[0]["pooled_features"].cpu().detach().numpy()
 
             print('data_["pred_boxes"].shape', data_["pred_boxes"].shape)
             print('data_["pred_labels"].shape', data_["pred_labels"].shape)
             print('data_["pred_scores"].shape', data_["pred_scores"].shape)
 
-            print("pooled_features.shape", data_["pooled_features"].shape)
-            print("pooled_features.dtype", data_["pooled_features"].dtype)
+            # print("pooled_features.shape", data_["pooled_features"].shape)
+            # print("pooled_features.dtype", data_["pooled_features"].dtype)
 
-            # double for loop
-            matched_detections_ind = []
-            for i in range(data_["gt_boxes"].shape[0]):
-                for j in range(data_["pred_boxes"].shape[0]):
-                    # compute IoU between ith ground truth box, and jth predicted box.
-                    # pooled_features[j] is the jth boxes pooled features to save if iou > IOU_THRESH
-                    # seq_num/obj_id/frame.npy -> ../data/kitti-similarity/{curr_seq}/{gt_boxes[-1]}/{idx}.npy
-                    pass
+            # # double for loop
+            # matched_detections_ind = []
+            # for i in range(data_["gt_boxes"].shape[0]):
+            #     curr_gt_box = data_["gt_boxes"][i, :]
+            #     scores = []
+
+            #     for j in range(data_["pred_boxes"].shape[0]):
+            #         # compute IoU between ith ground truth box, and jth predicted box.
+            #         # pooled_features[j] is the jth boxes pooled features to save if iou > IOU_THRESH
+            #         # seq_num/obj_id/frame.npy -> ../data/kitti-similarity/{curr_seq}/{gt_boxes[-1]}/{idx}.npy
+            #         curr_prediction = data_["pred_boxes"][j, :]
+            #         curr_iou_score = "TODO" #TODO
+
+            # IoU Scores Computation
+            device='cuda' if torch.cuda.is_available() else 'cpu'
+            print("device", device)
+            gt_boxes_t = torch.FloatTensor(data_["gt_boxes"]).to(device)
+            pred_boxes_t = torch.FloatTensor(data_["pred_boxes"]).to(device)
+            """
+                gt_boxes_t - shape: (N, 7)
+                pred_boxes_t - shape: (M, 7)
+                iou_scores - shape: (N, M), N=num gt objects, m=num of predicted objects
+            """
+            iou_scores = boxes_iou3d_gpu(gt_boxes_t, pred_boxes_t)
+
+            """
+                idea: 
+                    We expect that there won't be more than one match for a gt box with iou > 0.5 or threshold
+                Implementation: 
+                    We match only one box to a gt through argmax
+                    => each gt box cannot have more than one match     
+            """
+            matched_indices = []
+            sorted_inds = torch.argsort(iou_scores, dim=1, descending=True)
+            for i in range(iou_scores.shape[0]):
+                for j in range(iou_scores.shape[1]):
+                    
+                    curr_pred_ind = sorted_inds[i, j].item()
+
+                    if curr_pred_ind in matched_indices:
+                        break
+
+                    curr_iou = iou_scores[i, curr_pred_ind].item()
+
+                    if curr_iou < IOU_THRESH:
+                        break
+                    
+                    if data_["pred_labels"][curr_pred_ind] != relevant_gt_labels[i]:
+                        break
+
+                    matched_indices.append(curr_pred_ind)
+                    # Save pooled features to ../data/kitti-similarity/{curr_seq}/{gt_boxes[-1]}/{idx}.npy
+                    save_dir = '../data/kitti-similarity/{}/{}/'.format(curr_seq, int(relevant_gt_ids[i]))
+                    save_path = '{}/{}.npy'.format(save_dir, idx)
+
+                    curr_feature = pooled_features[curr_pred_ind]
+                    Path(save_dir).mkdir(parents=True, exist_ok=True)
+                    np.save(save_path, curr_feature)
+
+            print(iou_scores.shape)
+            print(iou_scores.dtype)
+            print(type(iou_scores))
+            print(iou_scores)
 
             with open('%s/curr_pickle_%s.pkl' % (args.output_dir, str(idx)), 'wb+') as f:
                 pkl.dump(data_, f) 
