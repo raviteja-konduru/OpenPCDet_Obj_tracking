@@ -112,7 +112,8 @@ def main():
     gt_data = gt_data[gt_data[:, 1] != 'DontCare', :]
     gt_labels=gt_data[:, 1].reshape((-1, 1))
     print(gt_labels.shape)
-    gt_labels=np.apply_along_axis(lambda x : map_dict[x[0]], 1, gt_labels)
+    gt_labels=np.apply_along_axis(lambda x : -2 if map_dict.get(x[0]) is None else map_dict.get(x[0]), 1, gt_labels)
+    # -2 ==> not don't care or any other object we have in the map
     print(gt_labels.dtype, gt_labels.shape)
     print(gt_labels[0:10])
 
@@ -237,14 +238,22 @@ def main():
                     curr_feature = pooled_features[curr_pred_ind]
                     Path(save_dir).mkdir(parents=True, exist_ok=True)
                     np.save(save_path, curr_feature)
+                    
+                    # Saving label of object
+                    label_save_path = '{}/label.txt'.format(save_dir)
+                    if not os.path.exists(label_save_path):
+                        f = open(label_save_path, "a")
+                        f.write(str(relevant_gt_labels[i]))
+                        f.close()
+
 
             print(iou_scores.shape)
             print(iou_scores.dtype)
             print(type(iou_scores))
             print(iou_scores)
 
-            with open('%s/curr_pickle_%s.pkl' % (args.output_dir, str(idx)), 'wb+') as f:
-                pkl.dump(data_, f) 
+            # with open('%s/curr_pickle_%s.pkl' % (args.output_dir, str(idx)), 'wb+') as f:
+            #     pkl.dump(data_, f) 
 
             # # Writing to text file in kitti format for tracking step
             # frame_data = np.zeros((data_["pred_labels"].shape[0], 15))
